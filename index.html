@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bill Split</title>
+<style>
+  :root{
+    --bg:#f5f4f1; --card:#ffffff; --ink:#1b1b19; --muted:#77746d;
+    --line:#e4e1db; --field:#fbfaf8; --accent:#1d6f52; --accent-ink:#ffffff;
+    --warn:#a8391f; --warn-bg:#fdf0ec; --ok:#1d6f52;
+    --radius:14px;
+    color-scheme:light;
+  }
+  /* Auto: follow the OS, unless the user pinned light. */
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#131312; --card:#1d1d1b; --ink:#efeee8; --muted:#95928a;
+      --line:#33322e; --field:#26261f; --accent:#5cbb8c; --accent-ink:#0e1a14;
+      --warn:#e08767; --warn-bg:#2c1c16; --ok:#5cbb8c;
+      color-scheme:dark;
+    }
+  }
+  /* Pinned dark wins regardless of the OS. */
+  :root[data-theme="dark"]{
+      --bg:#131312; --card:#1d1d1b; --ink:#efeee8; --muted:#95928a;
+      --line:#33322e; --field:#26261f; --accent:#5cbb8c; --accent-ink:#0e1a14;
+      --warn:#e08767; --warn-bg:#2c1c16; --ok:#5cbb8c;
+      color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;
+    padding:16px 14px calc(40px + env(safe-area-inset-bottom));
+  }
+  .app{max-width:440px;margin:0 auto}
+  .hdr{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  h1{font-size:20px;margin:0;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:4px 0 16px}
+  .themeBtn{appearance:none;flex:none;display:flex;align-items:center;justify-content:center;
+       width:40px;height:40px;padding:0;border:1px solid var(--line);background:var(--field);
+       color:var(--muted);border-radius:11px;cursor:pointer;transition:color .12s,border-color .12s}
+  .themeBtn:hover{color:var(--ink)}
+  .themeBtn.pinned{color:var(--accent);border-color:var(--accent)}   /* overriding the OS */
+  .themeBtn svg{width:20px;height:20px;display:block}
+  .basis{display:flex;gap:5px;margin-top:7px}
+  .basis button{flex:1;appearance:none;font:inherit;font-size:12.5px;font-weight:550;
+       padding:8px 4px;border:1px solid var(--line);background:var(--field);color:var(--muted);
+       border-radius:9px;cursor:pointer}
+  .basis button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .tips.locked,.basis.locked{opacity:.4;pointer-events:none}
+  .tiplock{display:none;font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.35}
+  .tiplock.show{display:block}
+
+  .seg{display:flex;gap:4px;background:var(--field);border:1px solid var(--line);
+       border-radius:11px;padding:4px;margin-bottom:16px}
+  .seg button{flex:1;appearance:none;border:0;background:transparent;color:var(--muted);
+       font:inherit;font-size:13.5px;font-weight:550;padding:9px 6px;border-radius:8px;cursor:pointer}
+  .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+        padding:15px 15px 16px;margin-bottom:12px}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+        margin:0 0 12px;font-weight:650}
+
+  .row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .row:last-child{margin-bottom:0}
+  .row label{flex:1;font-size:14.5px}
+  .row label small{display:block;color:var(--muted);font-size:11.5px;line-height:1.3;margin-top:1px}
+
+  .money{position:relative;width:118px;flex:none}
+  .money::before{content:"$";position:absolute;left:10px;top:50%;transform:translateY(-50%);
+        color:var(--muted);font-size:14px;pointer-events:none}
+  input[type=text]{
+    width:100%;font:inherit;font-size:16px;font-variant-numeric:tabular-nums;
+    text-align:right;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
+    background:var(--field);color:var(--ink);-webkit-appearance:none}
+  .money input{padding-left:22px}
+  input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+  input::placeholder{color:var(--muted);opacity:.6}
+  input.expr{color:var(--accent)}
+  input.exprbad{color:var(--warn)}
+
+  .tips{display:flex;gap:6px;margin-top:2px}
+  .tips button{flex:1;appearance:none;font:inherit;font-size:14px;padding:9px 0;
+        border:1px solid var(--line);background:var(--field);color:var(--ink);
+        border-radius:9px;cursor:pointer}
+  .tips button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+  .tips .pctw{width:82px}
+  .pctw{position:relative;flex:none}
+  .pctw::after{content:"%";position:absolute;right:11px;top:50%;transform:translateY(-50%);
+        color:var(--muted);font-size:14px;pointer-events:none}
+  .pctw input{padding-right:26px}
+
+  .note{font-size:12.5px;color:var(--muted);margin-top:11px;padding-top:11px;border-top:1px solid var(--line)}
+  /* Live figures, not helper prose — sized to be read across a table. */
+  .note.live{font-size:15px;line-height:1.5}
+  .note.bad{color:var(--warn)}
+  .note.good{color:var(--ok)}
+  .note b{font-variant-numeric:tabular-nums}
+
+  .gapbox{display:none;margin-top:10px;background:var(--warn-bg);border-radius:9px;padding:10px 11px}
+  .gapbox.show{display:block}
+  .gapbox p{margin:0 0 8px;font-size:12.5px;color:var(--warn);line-height:1.4}
+  .chk{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--ink)}
+  .chk input{width:17px;height:17px;accent-color:var(--accent);margin:0}
+
+  /* party */
+  .prow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .prow .tag{width:26px;flex:none;text-align:center;font-size:12px;color:var(--muted);
+        font-weight:650}
+  .prow input{text-align:left;flex:1;min-width:0}
+  .prow .del{flex:none}
+  .you{font-size:11.5px;color:var(--muted);padding:0 4px;white-space:nowrap}
+
+  /* items */
+  .sh{border:1px solid var(--line);border-radius:11px;padding:11px;margin-bottom:9px;background:var(--field)}
+  .sh-top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .sh-top .money{flex:none;width:100px}
+  .sh-top input[type=text].name{text-align:left;flex:1;min-width:0;padding:9px 10px}
+  .chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
+  .chips button{appearance:none;font:inherit;font-size:12.5px;font-weight:550;padding:7px 12px;
+        border:1px solid var(--line);background:var(--card);color:var(--muted);
+        border-radius:20px;cursor:pointer;max-width:140px;overflow:hidden;
+        text-overflow:ellipsis;white-space:nowrap}
+  .chips button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .sh-mid{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+  .sh-mid input.heads{width:52px;text-align:center;padding:6px 4px;font-size:15px}
+  .sh-mid .hint{margin-left:auto;font-size:11.5px;text-align:right}
+  .sh-foot{display:flex;justify-content:space-between;align-items:baseline;
+        margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .sh-foot b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .helper{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0 0 12px}
+  .options{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  .options summary{font-size:13px;color:var(--accent);cursor:pointer;padding:3px 0}
+  .options[open] summary{margin-bottom:10px}
+  .item-label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:7px}
+  .share-toggle{font-size:12.5px;margin:3px 0 0;align-items:flex-start}
+  .share-toggle input{flex:none;margin-top:1px}
+  .shared-settings{margin-top:10px}
+  .shared-settings[hidden]{display:none}
+  .shared-settings .hint{font-size:11.5px;color:var(--muted);margin:6px 0 0}
+  button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .del{appearance:none;border:0;background:none;color:var(--muted);font:inherit;
+        font-size:12.5px;cursor:pointer;padding:0;text-decoration:underline}
+  .add{width:100%;appearance:none;font:inherit;font-size:14px;padding:11px;
+        border:1px dashed var(--line);background:transparent;color:var(--muted);
+        border-radius:10px;cursor:pointer}
+
+  .result{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+        padding:20px 16px 16px;margin-top:18px;text-align:center}
+  .result .cap{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:650}
+  .big{font-size:46px;font-weight:680;letter-spacing:-.03em;line-height:1.05;
+        margin:8px 0 4px;font-variant-numeric:tabular-nums;color:var(--accent)}
+  .pct{font-size:12.5px;color:var(--muted)}
+
+  table{width:100%;border-collapse:collapse;margin-top:16px;font-size:14px;text-align:left}
+  td{padding:6px 0;border-bottom:1px solid var(--line)}
+  td:last-child{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tr.sum td{font-weight:650;border-bottom:0;padding-top:9px}
+  tr.head td{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+        padding-top:14px;border-bottom:0;font-weight:650}
+  td.m{color:var(--muted)}
+
+  .foot{display:flex;justify-content:center;margin-top:16px}
+  .foot button{appearance:none;border:0;background:none;color:var(--muted);
+        font:inherit;font-size:13px;cursor:pointer;text-decoration:underline}
+</style>
+<script>
+  // Applied before paint so a pinned theme doesn't flash the other palette.
+  try{
+    var t0 = localStorage.getItem('billsplit.theme');
+    if(t0 === 'dark' || t0 === 'light') document.documentElement.setAttribute('data-theme', t0);
+  }catch(e){}
+</script>
+</head>
+<body>
+<div class="app">
+
+  <div class="hdr">
+    <h1>Bill Split</h1>
+    <button class="themeBtn" id="themeBtn" type="button" aria-label="Theme"></button>
+  </div>
+  <p class="sub">Split the check for you and the people you’re paying for.</p>
+
+  <div class="seg" id="modeSeg">
+    <button data-mode="owe" class="on">Someone else paid</button>
+    <button data-mode="rev">I paid for everyone</button>
+  </div>
+
+  <div class="card">
+    <h2>The bill</h2>
+    <div class="row">
+      <label for="tableSub">Subtotal <small>All food and drinks before tax</small></label>
+      <div class="money"><input type="text" inputmode="decimal" id="tableSub" placeholder="0.00"></div>
+    </div>
+    <div class="row">
+      <label for="tax">Tax</label>
+      <div class="money"><input type="text" inputmode="decimal" id="tax" placeholder="0.00"></div>
+    </div>
+    <div class="row" style="align-items:flex-start">
+      <label style="padding-top:9px">Tip</label>
+    </div>
+    <div class="tips" id="tips">
+      <button data-tip="15">15%</button>
+      <button data-tip="18">18%</button>
+      <button data-tip="20" class="on">20%</button>
+      <button data-tip="25">25%</button>
+      <div class="pctw"><input type="text" inputmode="decimal" id="tipPct" aria-label="Tip percentage" value="20"></div>
+    </div>
+    <div class="basis" id="basisSeg">
+      <button data-basis="pre" class="on">Before tax</button>
+      <button data-basis="post">After tax</button>
+    </div>
+    <div class="tiplock" id="tipLock">Tip is calculated from your final total. Clear it in “Use receipt totals” to choose a percentage.</div>
+    <details class="options" id="receiptOptions">
+      <summary>Use receipt totals</summary>
+      <p class="helper">Enter either total from your receipt to calculate tax or the exact tip.</p>
+    <div class="row">
+      <label for="totalBefore">Total before tip <small>Calculates tax if Tax is blank</small></label>
+      <div class="money"><input type="text" inputmode="decimal" id="totalBefore" placeholder="0.00"></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label for="totalAfter">Final total, including tip <small>Sets the exact tip instead of a percentage</small></label>
+      <div class="money"><input type="text" inputmode="decimal" id="totalAfter" placeholder="0.00"></div>
+    </div>
+    </details>
+    <div class="note live" id="billNote">Enter the subtotal to begin.</div>
+    <div class="gapbox" id="gapBox">
+      <p id="gapMsg"></p>
+      <label class="chk"><input type="checkbox" id="gapInc"> Split this difference proportionally</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Your group</h2>
+    <p class="helper">Add everyone you’re paying for.</p>
+    <div id="partyList"></div>
+    <button class="add" id="addPerson">+ Add person</button>
+
+  </div>
+
+  <div class="card">
+    <h2>Your orders</h2>
+    <p class="helper">Enter item prices before tax and tip. For shared items, enter the full price.</p>
+    <div id="itemList"></div>
+    <button class="add" id="addItem">+ Add item</button>
+    <details class="options" id="combinedOptions">
+      <summary>Enter a combined amount</summary>
+      <p class="helper">Split this amount equally within your group. Add any other items separately.</p>
+      <div class="row">
+        <label for="ourFood">Combined amount</label>
+        <div class="money"><input type="text" inputmode="decimal" id="ourFood" placeholder="0.00"></div>
+      </div>
+    </details>
+    <div class="note live" id="foodNote"></div>
+  </div>
+
+  <div class="result">
+    <div class="cap" id="resCap">You owe</div>
+    <div class="big" id="resBig">$0.00</div>
+    <div class="pct" id="resPct">&nbsp;</div>
+    <table id="breakdown"></table>
+  </div>
+
+  <div class="foot"><button id="reset">Clear everything</button></div>
+</div>
+
+<script>
+(function(){
+  var state = {
+    mode: 'owe',
+    tipPost: false,      // tip on subtotal + tax rather than subtotal alone
+    party: [],
+    items: [],
+    nextId: 1
+  };
+
+  function $(id){ return document.getElementById(id); }
+  function money(n){ return (n < -0.005 ? '-$' : '$') + Math.abs(n).toFixed(2); }
+  function esc(v){ return String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+  // ---------- arithmetic in any number field ----------
+  // Evaluates a typed expression: "155.96/2", "40+12.50", "(30+18)/3".
+  // Hand-rolled recursive descent — no eval, no Function constructor.
+  function evalExpr(raw){
+    var s = String(raw == null ? '' : raw).replace(/[$,\s]/g,'')
+                                          .replace(/×/g,'*').replace(/÷/g,'/');
+    if(s === '') return { ok:true, val:0, expr:false };
+    if(!/^[0-9.+\-*/()]+$/.test(s)) return { ok:false, val:0, expr:true };
+
+    function run(str){
+      var i = 0;
+      function peek(){ return str.charAt(i); }
+      function expr(){
+        var v = term();
+        while(peek() === '+' || peek() === '-'){
+          var op = str.charAt(i++), r = term();
+          v = op === '+' ? v + r : v - r;
+        }
+        return v;
+      }
+      function term(){
+        var v = factor();
+        while(peek() === '*' || peek() === '/'){
+          var op = str.charAt(i++), r = factor();
+          if(op === '/' && r === 0) throw 0;
+          v = op === '*' ? v * r : v / r;
+        }
+        return v;
+      }
+      function factor(){
+        if(peek() === '-'){ i++; return -factor(); }
+        if(peek() === '+'){ i++; return factor(); }
+        if(peek() === '('){
+          i++;
+          var v = expr();
+          if(peek() !== ')') throw 0;
+          i++;
+          return v;
+        }
+        var start = i;
+        while(i < str.length && /[0-9.]/.test(str.charAt(i))) i++;
+        if(i === start) throw 0;
+        var tok = str.slice(start, i);
+        if(!/^(?:\d+\.?\d*|\.\d+)$/.test(tok)) throw 0;   // rejects "2..5", "1.2.3", "."
+        var n = parseFloat(tok);
+        if(!isFinite(n)) throw 0;
+        return n;
+      }
+      var v = expr();
+      if(i !== str.length) throw 0;
+      if(!isFinite(v)) throw 0;
+      return v;
+    }
+
+    var isExpr = /[+\-*/()]/.test(s.slice(1)) || s.charAt(0) === '(';
+    try {
+      return { ok:true, val:run(s), expr:isExpr };
+    } catch(e){
+      // Mid-typing ("155.96/") — evaluate the complete prefix so the
+      // numbers below don't flash to zero on every keystroke.
+      var trimmed = s.replace(/[+\-*/(]+$/,'');
+      if(trimmed !== s && trimmed !== ''){
+        try { return { ok:false, val:run(trimmed), expr:true }; } catch(e2){}
+      }
+      return { ok:false, val:0, expr:true };
+    }
+  }
+
+  function num(id){ var el = $(id); return el ? evalExpr(el.value).val : 0; }
+  function filled(id){ return String($(id).value).trim() !== ''; }
+
+  function isCalcField(el){
+    return el && el.tagName === 'INPUT' && el.type === 'text'
+        && !el.classList.contains('name') && !el.classList.contains('pname');
+  }
+  function hasOperator(raw){
+    var t = String(raw).trim();
+    return t !== '' && (/[+\-*/()]/.test(t.slice(1)) || t.charAt(0) === '(');
+  }
+  function markExpr(el){
+    if(!isCalcField(el)) return;
+    var live = hasOperator(el.value) && evalExpr(el.value);
+    el.classList.toggle('expr',    !!live && live.ok);
+    el.classList.toggle('exprbad', !!live && !live.ok);
+  }
+
+  // ---------- party ----------
+  function addPerson(name){
+    state.party.push({ id: state.nextId++, name: name || '' });
+    renderParty(); renderItems(); recalc();
+  }
+
+  function personName(p, i){
+    return (p.name || '').trim() || (i === 0 ? 'Me' : 'Person ' + (i + 1));
+  }
+
+  function renderParty(){
+    $('partyList').innerHTML = state.party.map(function(p,i){
+      return '<div class="prow" data-i="'+i+'">'
+        + '<span class="tag">'+(i+1)+'</span>'
+        + '<input type="text" class="pname" data-f="name" value="'+esc(p.name)+'" '
+        +   'aria-label="'+(i === 0 ? 'Your name' : 'Group member '+(i+1))+'" placeholder="'+esc(i === 0 ? 'Me' : 'Name')+'">'
+        + (i === 0 ? '<span class="you">you</span>'
+                   : '<button class="del" data-f="del">Remove</button>')
+        + '</div>';
+    }).join('');
+  }
+
+  $('partyList').addEventListener('input', function(e){
+    if(e.target.getAttribute('data-f') !== 'name') return;
+    var i = +e.target.closest('.prow').getAttribute('data-i');
+    state.party[i].name = e.target.value;
+    renderItems();   // chip labels follow the names
+    recalc();
+  });
+
+  $('partyList').addEventListener('click', function(e){
+    if(e.target.getAttribute('data-f') !== 'del') return;
+    var i = +e.target.closest('.prow').getAttribute('data-i');
+    if(state.party.length <= 1) return;          // never remove the last person
+    var gone = state.party[i].id;
+    state.party.splice(i,1);
+    state.items.forEach(function(it){ delete it.on[gone]; });   // drop them from every dish
+    renderParty(); renderItems(); recalc();
+  });
+
+  $('addPerson').addEventListener('click', function(){ addPerson(''); });
+
+  // ---------- items ----------
+  function addItem(){
+    var on = {};
+    if(state.party.length) on[state.party[0].id] = true;        // defaults to you
+    state.items.push({ id: state.nextId++, name:'', amount:'', on:on, heads:'1', shared:false });
+    renderItems(); recalc();
+  }
+
+  function selectedCount(it){
+    var n = 0;
+    state.party.forEach(function(p){ if(it.on[p.id]) n++; });
+    return n;
+  }
+
+  function renderItems(){
+    $('itemList').innerHTML = state.items.map(function(it,i){
+      var chips = state.party.map(function(p,pi){
+        return '<button type="button" data-f="on" data-p="'+p.id+'" aria-pressed="'+!!it.on[p.id]+'" class="'+(it.on[p.id]?'on':'')+'">'
+             + esc(personName(p,pi)) + '</button>';
+      }).join('');
+      return '<div class="sh" data-i="'+i+'">'
+        + '<div class="sh-top">'
+        +   '<input type="text" class="name" data-f="name" aria-label="Item name" placeholder="Item name" value="'+esc(it.name)+'">'
+        +   '<div class="money"><input type="text" inputmode="decimal" data-f="amount" aria-label="Full item price before tax and tip" placeholder="0.00" value="'+esc(it.amount)+'"></div>'
+        + '</div>'
+        + '<span class="item-label" id="who'+it.id+'">Who in your group shares this?</span>'
+        + '<div class="chips" role="group" aria-labelledby="who'+it.id+'">'+chips+'</div>'
+        + '<label class="chk share-toggle"><input type="checkbox" data-f="shared" '+(it.shared?'checked':'')+' aria-controls="sharing'+it.id+'"> Also shared with others at the table?</label>'
+        + '<div class="shared-settings" id="sharing'+it.id+'" '+(it.shared?'':'hidden')+'>'
+        +   '<div class="sh-mid"><label for="heads'+it.id+'">Total people sharing</label>'
+        +   '<input type="text" inputmode="numeric" class="heads" id="heads'+it.id+'" aria-describedby="hint'+it.id+'" data-f="heads" value="'+esc(it.heads)+'"></div>'
+        +   '<p class="hint" id="hint'+it.id+'"></p>'
+        + '</div>'
+        + '<div class="sh-foot"><span>Your group’s share: <b id="slice'+it.id+'">$0.00</b></span>'
+        +   '<button class="del" data-f="del">Remove</button></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  $('itemList').addEventListener('input', function(e){
+    var f = e.target.getAttribute('data-f'); if(!f) return;
+    var i = +e.target.closest('.sh').getAttribute('data-i');
+    if(f === 'shared'){
+      state.items[i].shared = e.target.checked;
+      if(e.target.checked){
+        state.items[i].heads = String(Math.max(selectedCount(state.items[i]) + 1, evalExpr(state.items[i].heads).val || 1));
+      }
+      renderItems();
+    } else {
+      state.items[i][f] = e.target.value;
+    }
+    recalc();
+  });
+
+  $('itemList').addEventListener('click', function(e){
+    var f = e.target.getAttribute('data-f');
+    if(f !== 'on' && f !== 'del') return;
+    var row = e.target.closest('.sh');
+    var i = +row.getAttribute('data-i');
+    if(f === 'del'){
+      state.items.splice(i,1);
+      renderItems(); recalc();
+      return;
+    }
+    var pid = +e.target.getAttribute('data-p');
+    if(state.items[i].on[pid]) delete state.items[i].on[pid];
+    else state.items[i].on[pid] = true;
+    e.target.classList.toggle('on');
+    e.target.setAttribute('aria-pressed', !!state.items[i].on[pid]);
+
+    // Keep "split N ways" valid and visible — raise it to fit the chips,
+    // never lower it (a wider split is a deliberate choice).
+    var sel = selectedCount(state.items[i]);
+    if(state.items[i].shared && evalExpr(state.items[i].heads).val < sel){
+      state.items[i].heads = String(sel);
+      row.querySelector('[data-f="heads"]').value = String(sel);
+    }
+    recalc();
+  });
+
+  $('addItem').addEventListener('click', addItem);
+
+  // ---------- mode / tip ----------
+  // ---------- theme ----------
+  var THEMES = ['auto','light','dark'];
+  var THEME_ICON = {
+    auto:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">'
+         + '<circle cx="12" cy="12" r="9"/>'
+         + '<path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>',
+    light: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">'
+         + '<circle cx="12" cy="12" r="4.2"/>'
+         + '<path d="M12 2.4v2.2M12 19.4v2.2M4.2 12H2M22 12h-2.2'
+         + 'M6.5 6.5 4.9 4.9M19.1 19.1l-1.6-1.6M17.5 6.5l1.6-1.6M4.9 19.1l1.6-1.6"/></svg>',
+    dark:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">'
+         + '<path d="M20.5 13.3A8.4 8.4 0 0 1 10.7 3.5a8.4 8.4 0 1 0 9.8 9.8z"/></svg>'
+  };
+  var THEME_LABEL = {
+    auto:  'Theme: Auto — following your system. Tap for light.',
+    light: 'Theme: Light. Tap for dark.',
+    dark:  'Theme: Dark. Tap to follow your system.'
+  };
+  var themeNow = 'auto';
+
+  function applyTheme(t){
+    themeNow = t;
+    if(t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');   // auto = follow the OS
+    var b = $('themeBtn');
+    b.innerHTML = THEME_ICON[t];
+    b.title = THEME_LABEL[t];
+    b.setAttribute('aria-label', THEME_LABEL[t]);
+    b.classList.toggle('pinned', t !== 'auto');
+    try{ localStorage.setItem('billsplit.theme', t); }catch(e){}   // private mode, file:// — fine either way
+  }
+  $('themeBtn').addEventListener('click', function(){
+    applyTheme(THEMES[(THEMES.indexOf(themeNow) + 1) % THEMES.length]);
+  });
+
+  $('basisSeg').addEventListener('click', function(e){
+    var b = e.target.getAttribute('data-basis'); if(!b) return;
+    state.tipPost = b === 'post';
+    [].forEach.call(this.children, function(x){ x.classList.toggle('on', x === e.target); });
+    recalc();
+  });
+
+  $('modeSeg').addEventListener('click', function(e){
+    var m = e.target.getAttribute('data-mode'); if(!m) return;
+    state.mode = m;
+    [].forEach.call(this.children, function(b){ b.classList.toggle('on', b === e.target); });
+    recalc();
+  });
+
+  $('tips').addEventListener('click', function(e){
+    var t = e.target.getAttribute('data-tip'); if(!t) return;
+    $('tipPct').value = t;
+    syncTipButtons(); recalc();
+  });
+
+  function syncTipButtons(){
+    var v = String(num('tipPct'));
+    [].forEach.call($('tips').querySelectorAll('button'), function(b){
+      b.classList.toggle('on', b.getAttribute('data-tip') === v);
+    });
+  }
+
+  document.addEventListener('input', function(e){
+    if(e.target.id === 'tipPct') syncTipButtons();
+    if(e.target.tagName === 'INPUT'){ markExpr(e.target); recalc(); }
+  });
+  $('gapInc').addEventListener('change', recalc);
+
+  // Leaving a field replaces the expression with what it came out to.
+  document.addEventListener('focusout', function(e){
+    var el = e.target;
+    if(!isCalcField(el) || !hasOperator(el.value)) return;
+    var r = evalExpr(el.value);
+    if(!r.ok) return;
+    var v = el.classList.contains('heads')
+      ? String(Math.max(1, Math.round(r.val)))
+      : r.val.toFixed(2);
+    el.value = v;
+    var row = el.closest('.sh');
+    if(row) state.items[+row.getAttribute('data-i')][el.getAttribute('data-f')] = v;
+    markExpr(el); recalc();
+  });
+
+  $('reset').addEventListener('click', function(){
+    ['tableSub','tax','totalBefore','totalAfter','ourFood'].forEach(function(id){
+      $(id).value = ''; markExpr($(id));
+    });
+    $('tipPct').value = '20';
+    $('gapInc').checked = false;
+    state.tipPost = false;
+    [].forEach.call($('basisSeg').children, function(b){
+      b.classList.toggle('on', b.getAttribute('data-basis') === 'pre');
+    });
+    state.mode = 'owe';
+    [].forEach.call($('modeSeg').children, function(b){
+      b.classList.toggle('on', b.getAttribute('data-mode') === 'owe');
+    });
+    $('receiptOptions').open = false;
+    $('combinedOptions').open = false;
+    state.items = [];
+    state.party = [];
+    addPerson('Me'); addPerson('Her');
+    syncTipButtons(); recalc();
+  });
+
+  // ---------- the math ----------
+  function recalc(){
+    var tableSub = num('tableSub');
+    var tipPct   = num('tipPct');
+    var hasTax    = filled('tax');
+    var hasBefore = filled('totalBefore') && num('totalBefore') > 0;
+    var hasAfter  = filled('totalAfter')  && num('totalAfter')  > 0;
+
+    // Subtotal, tax and total-before-tip are three views of two numbers.
+    // Whichever two the receipt gives you, the third falls out.
+    var tax = hasTax ? num('tax')
+            : (hasBefore ? Math.max(0, num('totalBefore') - tableSub) : 0);
+    var beforeCalc = tableSub + tax;
+    var before     = hasBefore ? num('totalBefore') : beforeCalc;
+
+    // Only a real conflict when both were entered independently.
+    var gap    = (hasTax && hasBefore) ? before - beforeCalc : 0;
+    var useGap = $('gapInc').checked && Math.abs(gap) > 0.005;
+
+    // A signed total pins the tip to the dollar; otherwise it's a percentage.
+    var tipBase = state.tipPost ? beforeCalc : tableSub;
+    var tipAmt  = hasAfter ? num('totalAfter') - before : tipBase * tipPct / 100;
+    var tipShown = tableSub > 0 ? (tipAmt / (state.tipPost ? beforeCalc : tableSub)) * 100 : 0;
+
+    // Everything is expressed per dollar of pre-tax food, so every
+    // person's slice scales identically and the parts sum to the whole.
+    var taxRate = tableSub > 0 ? tax / tableSub : 0;
+    var tipRate = tableSub > 0 ? tipAmt / tableSub : 0;
+    var computedTot = before + tipAmt;
+    var grand  = computedTot;
+
+    $('tipLock').classList.toggle('show', hasAfter);
+    $('tips').classList.toggle('locked', hasAfter);
+    $('basisSeg').classList.toggle('locked', hasAfter);
+    $('totalBefore').placeholder = beforeCalc  > 0 ? beforeCalc.toFixed(2)  : '0.00';
+    $('totalAfter').placeholder  = computedTot > 0 ? computedTot.toFixed(2) : '0.00';
+
+    // Pre-tax base per person: their slice of every item they're on,
+    // plus an even cut of the lump sum.
+    var perBase = {}, itemsTotal = 0, overSplit = false;
+    state.party.forEach(function(p){ perBase[p.id] = 0; });
+
+    state.items.forEach(function(it){
+      var amt = evalExpr(it.amount).val;
+      var sel = selectedCount(it);
+      var heads = it.shared ? Math.max(1, Math.floor(evalExpr(it.heads).val || 1)) : Math.max(1, sel);
+      if(sel > heads) overSplit = true;
+      itemsTotal += amt;
+      var per = amt / heads;
+      state.party.forEach(function(p){ if(it.on[p.id]) perBase[p.id] += per; });
+      var el = $('slice'+it.id);
+      if(el) el.textContent = money(per * Math.min(sel, heads));
+      var hint = $('hint'+it.id);
+      if(hint) hint.textContent = 'Includes the ' + sel + ' selected above.'
+        + (heads > sel && sel > 0 ? ' ' + money(per) + ' each.' : '');
+    });
+
+    var lump   = num('ourFood');
+    var lumpEa = state.party.length ? lump / state.party.length : 0;
+    state.party.forEach(function(p){ perBase[p.id] += lumpEa; });
+
+    var base = 0;
+    state.party.forEach(function(p){ base += perBase[p.id]; });
+    var ratio = tableSub > 0 ? base / tableSub : 0;
+
+    function totalFor(b){
+      return b + b*taxRate + b*tipRate
+           + (useGap && tableSub > 0 ? gap * (b / tableSub) : 0);   // service charge, shared
+    }
+    var ourTot = totalFor(base);
+
+    // --- bill note / discrepancy ---
+    var note = $('billNote');
+    if(tableSub <= 0){
+      note.className = 'note live';
+      note.textContent = 'Enter the subtotal to begin.';
+    } else if(Math.abs(gap) > 0.005){
+      note.className = 'note live bad';
+      note.innerHTML = 'Subtotal + tax = <b>' + money(beforeCalc)
+        + '</b>, but the bill says <b>' + money(before) + '</b>.';
+    } else if(tipAmt < -0.005){
+      note.className = 'note live bad';
+      note.innerHTML = 'Your final total is <b>' + money(-tipAmt)
+        + '</b> less than the total before tip.';
+    } else {
+      note.className = 'note live good';
+      note.innerHTML = 'Tip <b>' + money(tipAmt) + '</b> '
+        + '<span style="opacity:.7">(' + tipShown.toFixed(1) + '%'
+        + (state.tipPost ? ' post-tax' : '') + ')</span>'
+        + ' &nbsp;·&nbsp; total <b>' + money(computedTot)
+        + '</b> &nbsp;·&nbsp; tax rate <b>' + (taxRate*100).toFixed(2) + '%</b>';
+    }
+
+    var box = $('gapBox');
+    if(Math.abs(gap) > 0.005 && tableSub > 0){
+      box.classList.add('show');
+      $('gapMsg').textContent = gap > 0
+        ? 'Off by ' + money(gap) + ' more than expected — likely a service charge or a fee.'
+        : 'Off by ' + money(-gap) + ' less than expected — likely a discount or a comped item.';
+    } else {
+      box.classList.remove('show');
+    }
+
+    // --- food note ---
+    var fnote = $('foodNote');
+    var others = tableSub - lump - itemsTotal;
+    if(tableSub <= 0 || base <= 0){
+      fnote.className = 'note live';
+      fnote.textContent = 'Add the items your group ordered, or enter a combined amount.';
+    } else if(overSplit){
+      fnote.className = 'note live bad';
+      fnote.textContent = 'Total people sharing must include everyone selected for that item.';
+    } else if(others < -0.005){
+      fnote.className = 'note live bad';
+      fnote.innerHTML = 'Your combined amount plus the items exceed the receipt subtotal by <b>'
+        + money(-others) + '</b>. Don’t enter the same dish twice.';
+    } else {
+      fnote.className = 'note live';
+      fnote.innerHTML = 'Your group’s orders before tax: <b>' + money(base) + '</b>';
+    }
+
+    // --- result ---
+    var owed = state.mode === 'owe' ? ourTot : (grand - ourTot);
+    $('resCap').textContent = state.mode === 'owe' ? 'You owe' : 'You’re owed';
+    $('resBig').textContent = money(owed);
+    $('resPct').textContent = tableSub > 0
+      ? (state.mode === 'owe'
+          ? 'Your group’s share of the bill: ' + (ratio*100).toFixed(1) + '%'
+          : 'You paid ' + money(grand) + ' · ' + money(ourTot) + ' was your group’s share')
+      : ' ';
+
+    var r = [];
+    if(lump > 0) r.push(['Combined amount', money(lump), '']);
+    if(itemsTotal > 0) r.push(['Your group’s items', money(base - lump), '']);
+    r.push(['Pre-tax subtotal', money(base), 'sum']);
+    r.push(['Tax at ' + (taxRate*100).toFixed(2) + '%', money(base*taxRate), '']);
+    // Label the tip actually being charged, not the percent box — a signed
+    // total overrides it.
+    r.push(['Tip at ' + (Math.round(tipShown*10)/10) + '%'
+            + (state.tipPost ? ' of subtotal + tax' : ''),
+            money(base*tipRate), '']);
+    if(useGap) r.push([(gap > 0 ? 'Extra charge' : 'Discount') + ', your share',
+                       money(gap*ratio), '']);
+    r.push(['Your group’s total', money(ourTot), 'sum']);
+
+    if(state.party.length > 1 && base > 0){
+      r.push(['Per person', '', 'head']);
+      state.party.forEach(function(p,i){
+        r.push([esc(personName(p,i)), money(totalFor(perBase[p.id])), 'm']);
+      });
+    }
+
+    $('breakdown').innerHTML = r.map(function(x){
+      var cls = x[2] === 'sum' ? ' class="sum"' : (x[2] === 'head' ? ' class="head"' : '');
+      var td  = x[2] === 'm' ? ' class="m"' : '';
+      return '<tr'+cls+'><td'+td+'>'+x[0]+'</td><td'+td+'>'+x[1]+'</td></tr>';
+    }).join('');
+  }
+
+  var savedTheme = 'auto';
+  try{ savedTheme = localStorage.getItem('billsplit.theme') || 'auto'; }catch(e){}
+  applyTheme(savedTheme);
+
+  addPerson('Me');
+  addPerson('Her');
+  recalc();
+})();
+</script>
+</body>
+</html>
